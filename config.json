@@ -1,0 +1,92 @@
+{
+  "onbase": {
+    "url": "https://onbase.poupex.com.br",
+    "username": "automation_user",
+    "password": "CONFIGURAR_SENHA_AQUI"
+  },
+  "processing": {
+    "max_documents_per_run": 100,
+    "processing_interval_hours": 2,
+    "business_hours_only": true,
+    "start_hour": 8,
+    "end_hour": 18
+  },
+  "sector_rules": {
+    "RECURSOS_HUMANOS": {
+      "keywords": [
+        "RH", "FOLHA", "PAGAMENTO", "FUNCIONARIO", "CONTRATACAO", 
+        "DEMISSAO", "FERIAS", "SALARIO", "BENEFICIO", "CARGO"
+      ],
+      "weight": 1.0
+    },
+    "CONTRATOS": {
+      "keywords": [
+        "CONTRATO", "ACORDO", "TERMO", "ADITIVO", "RESCISAO", 
+        "CLAUSULA", "FORNECEDOR", "PRESTADOR"
+      ],
+      "weight": 1.0
+    },
+    "FINANCEIRO": {
+      "keywords": [
+        "FINANCEIRO", "ORCAMENTO", "PAGAMENTO", "RECEITA", "DESPESA", 
+        "BALANCO", "FATURA", "NOTA FISCAL", "BOLETO", "COBRANCA"
+      ],
+      "weight": 1.0
+    },
+    "JURIDICO": {
+      "keywords": [
+        "JURIDICO", "PROCESSO", "PARECER", "ALVARA", "LICENCA", 
+        "TRIBUNAL", "ADVOGADO", "SENTENCA", "PETICAO"
+      ],
+      "weight": 1.0
+    },
+    "PRESIDENCIA": {
+      "keywords": [
+        "PRESIDENCIA", "DIRETORIA", "CONSELHO", "ATA", "DELIBERACAO", 
+        "ESTRATEGIA", "DECISAO", "REUNIAO", "ASSEMBLEIA"
+      ],
+      "weight": 1.0
+    },
+    "TECNOLOGIA": {
+      "keywords": [
+        "TI", "SISTEMA", "SOFTWARE", "HARDWARE", "BACKUP", 
+        "REDE", "SERVIDOR", "COMPUTADOR", "TECNOLOGIA", "INTERNET"
+      ],
+      "weight": 1.0
+    },
+    "AUDITORIA": {
+      "keywords": [
+        "AUDITORIA", "COMPLIANCE", "CONTROLE", "REVISAO", "INSPECAO", 
+        "CONFORMIDADE", "RISCO", "GOVERNANCA", "VERIFICACAO"
+      ],
+      "weight": 1.0
+    },
+    "COMERCIAL": {
+      "keywords": [
+        "COMERCIAL", "VENDAS", "CLIENTE", "PROPOSTA", "ORCAMENTO", 
+        "MARKETING", "PRODUTO", "SERVICO", "ATENDIMENTO"
+      ],
+      "weight": 1.0
+    }
+  },
+  "confidence_threshold": 0.7,
+  "default_sector": "GERAL",
+  "notifications": {
+    "enabled": true,
+    "server": "smtp.poupex.com.br",
+    "port": 587,
+    "username": "automation@poupex.com.br",
+    "password": "CONFIGURAR_SENHA_EMAIL",
+    "notification_email": "ti@poupex.com.br"
+  },
+  "security": {
+    "encrypt_passwords": true,
+    "log_retention_days": 30,
+    "audit_enabled": true
+  },
+  "ui_settings": {
+    "theme": "default",
+    "language": "pt-BR",
+    "auto_refresh_interval": 30
+  }
+}

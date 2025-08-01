@@ -1,0 +1,228 @@
+{
+  "definition": {
+    "name": "OnBase_Document_Classifier_POUPEX",
+    "description": "Automatiza a classificação de documentos no OnBase para os setores da POUPEX FHE",
+    "version": "1.0",
+    "trigger": {
+      "type": "Scheduled",
+      "properties": {
+        "recurrence": {
+          "frequency": "Hour",
+          "interval": 2,
+          "startTime": "08:00:00"
+        }
+      }
+    },
+    "actions": {
+      "Initialize_Variables": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "OnBaseURL",
+              "type": "string",
+              "value": "https://onbase.poupex.com.br"
+            },
+            {
+              "name": "ProcessedCount",
+              "type": "integer",
+              "value": 0
+            },
+            {
+              "name": "ErrorCount",
+              "type": "integer",
+              "value": 0
+            }
+          ]
+        }
+      },
+      "Login_OnBase": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@{variables('OnBaseURL')}/api/authentication/login",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "username": "@parameters('OnBaseUsername')",
+            "password": "@parameters('OnBasePassword')"
+          }
+        },
+        "runAfter": {
+          "Initialize_Variables": ["Succeeded"]
+        }
+      },
+      "Get_Pending_Documents": {
+        "type": "Http",
+        "inputs": {
+          "method": "GET",
+          "uri": "@{variables('OnBaseURL')}/api/documents/pending",
+          "headers": {
+            "Authorization": "Bearer @{body('Login_OnBase')['access_token']}"
+          }
+        },
+        "runAfter": {
+          "Login_OnBase": ["Succeeded"]
+        }
+      },
+      "For_Each_Document": {
+        "type": "Foreach",
+        "foreach": "@body('Get_Pending_Documents')['documents']",
+        "actions": {
+          "Get_Document_Content": {
+            "type": "Http",
+            "inputs": {
+              "method": "GET",
+              "uri": "@{variables('OnBaseURL')}/api/documents/@{items('For_Each_Document')['id']}/content",
+              "headers": {
+                "Authorization": "Bearer @{body('Login_OnBase')['access_token']}"
+              }
+            }
+          },
+          "Classify_Document": {
+            "type": "Compose",
+            "inputs": "@if(contains(items('For_Each_Document')['name'], 'RH'), 'RECURSOS_HUMANOS', if(contains(items('For_Each_Document')['name'], 'CONTRATO'), 'CONTRATOS', if(contains(items('For_Each_Document')['name'], 'FINANCEIRO'), 'FINANCEIRO', if(contains(items('For_Each_Document')['name'], 'JURIDICO'), 'JURIDICO', if(contains(items('For_Each_Document')['name'], 'PRESIDENCIA'), 'PRESIDENCIA', if(contains(items('For_Each_Document')['name'], 'TI'), 'TECNOLOGIA', if(contains(items('For_Each_Document')['name'], 'AUDITORIA'), 'AUDITORIA', if(contains(items('For_Each_Document')['name'], 'COMERCIAL'), 'COMERCIAL', 'GERAL'))))))))",
+            "runAfter": {
+              "Get_Document_Content": ["Succeeded"]
+            }
+          },
+          "Move_Document_To_Sector": {
+            "type": "Http",
+            "inputs": {
+              "method": "PUT",
+              "uri": "@{variables('OnBaseURL')}/api/documents/@{items('For_Each_Document')['id']}/move",
+              "headers": {
+                "Authorization": "Bearer @{body('Login_OnBase')['access_token']}",
+                "Content-Type": "application/json"
+              },
+              "body": {
+                "targetFolder": "@{outputs('Classify_Document')}",
+                "reason": "Classificação automática - Power Automate"
+              }
+            },
+            "runAfter": {
+              "Classify_Document": ["Succeeded"]
+            }
+          },
+          "Log_Success": {
+            "type": "Compose",
+            "inputs": {
+              "timestamp": "@utcnow()",
+              "documentId": "@items('For_Each_Document')['id']",
+              "documentName": "@items('For_Each_Document')['name']",
+              "classification": "@outputs('Classify_Document')",
+              "status": "SUCCESS"
+            },
+            "runAfter": {
+              "Move_Document_To_Sector": ["Succeeded"]
+            }
+          },
+          "Increment_Processed_Count": {
+            "type": "IncrementVariable",
+            "inputs": {
+              "name": "ProcessedCount",
+              "value": 1
+            },
+            "runAfter": {
+              "Log_Success": ["Succeeded"]
+            }
+          },
+          "Handle_Error": {
+            "type": "Compose",
+            "inputs": {
+              "timestamp": "@utcnow()",
+              "documentId": "@items('For_Each_Document')['id']",
+              "error": "@actions('Move_Document_To_Sector')['error']",
+              "status": "ERROR"
+            },
+            "runAfter": {
+              "Move_Document_To_Sector": ["Failed"]
+            }
+          },
+          "Increment_Error_Count": {
+            "type": "IncrementVariable",
+            "inputs": {
+              "name": "ErrorCount",
+              "value": 1
+            },
+            "runAfter": {
+              "Handle_Error": ["Succeeded"]
+            }
+          }
+        },
+        "runAfter": {
+          "Get_Pending_Documents": ["Succeeded"]
+        }
+      },
+      "Send_Daily_Report": {
+        "type": "Office365Outlook.SendEmailV2",
+        "inputs": {
+          "host": {
+            "connectionName": "shared_office365",
+            "operationId": "SendEmailV2",
+            "apiId": "/providers/Microsoft.PowerPlatform/apis/shared_office365"
+          },
+          "parameters": {
+            "emailMessage": {
+              "To": "ti@poupex.com.br",
+              "Subject": "Relatório Automação OnBase - @{formatDateTime(utcnow(), 'dd/MM/yyyy')}",
+              "Body": "<h2>Relatório de Automação OnBase - POUPEX FHE</h2><p><strong>Data:</strong> @{formatDateTime(utcnow(), 'dd/MM/yyyy HH:mm')}</p><p><strong>Documentos Processados:</strong> @{variables('ProcessedCount')}</p><p><strong>Erros:</strong> @{variables('ErrorCount')}</p><p><strong>Taxa de Sucesso:</strong> @{div(mul(variables('ProcessedCount'), 100), add(variables('ProcessedCount'), variables('ErrorCount')))}%</p><hr><p>Sistema automatizado desenvolvido para POUPEX FHE</p>",
+              "Importance": "Normal"
+            }
+          }
+        },
+        "runAfter": {
+          "For_Each_Document": ["Succeeded", "Failed"]
+        }
+      }
+    },
+    "parameters": {
+      "OnBaseUsername": {
+        "type": "string",
+        "metadata": {
+          "description": "Usuário para acesso ao OnBase"
+        }
+      },
+      "OnBasePassword": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Senha para acesso ao OnBase"
+        }
+      }
+    }
+  },
+  "classification_rules": {
+    "RECURSOS_HUMANOS": [
+      "RH", "FOLHA", "PAGAMENTO", "FUNCIONARIO", "CONTRATACAO", "DEMISSAO", "FERIAS"
+    ],
+    "CONTRATOS": [
+      "CONTRATO", "ACORDO", "TERMO", "ADITIVO", "RESCISAO"
+    ],
+    "FINANCEIRO": [
+      "FINANCEIRO", "ORCAMENTO", "PAGAMENTO", "RECEITA", "DESPESA", "BALANCO"
+    ],
+    "JURIDICO": [
+      "JURIDICO", "PROCESSO", "PARECER", "ALVARA", "LICENCA"
+    ],
+    "PRESIDENCIA": [
+      "PRESIDENCIA", "DIRETORIA", "CONSELHO", "ATA", "DELIBERACAO"
+    ],
+    "TECNOLOGIA": [
+      "TI", "SISTEMA", "SOFTWARE", "HARDWARE", "BACKUP", "REDE"
+    ],
+    "AUDITORIA": [
+      "AUDITORIA", "COMPLIANCE", "CONTROLE", "REVISAO", "INSPECAO"
+    ],
+    "COMERCIAL": [
+      "COMERCIAL", "VENDAS", "CLIENTE", "PROPOSTA", "ORCAMENTO"
+    ]
+  },
+  "settings": {
+    "execution_schedule": "Every 2 hours during business hours (8AM - 6PM)",
+    "error_handling": "Log errors and continue processing",
+    "notification_email": "ti@poupex.com.br",
+    "backup_location": "OneDrive/OnBase_Backups",
+    "max_documents_per_run": 100
+  }
+}
